@@ -1,187 +1,214 @@
-Reading Data From the Web
+Strings and Factors
 ================
 Teshawna Badu
 
-## NSDUH data
+## String vectors
 
 ``` r
-url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
-drug_use_html = 
-  read_html(url)
-drug_use_df = 
-  drug_use_html %>% 
+string_vec = c("my", "name", "is", "jeff")
+str_detect(string_vec, "Jeff")
+```
+
+    ## [1] FALSE FALSE FALSE FALSE
+
+``` r
+str_replace(string_vec, "jeff", "")
+```
+
+    ## [1] "my"   "name" "is"   ""
+
+``` r
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+str_detect(string_vec, "^i think")
+```
+
+    ## [1]  TRUE  TRUE  TRUE FALSE
+
+``` r
+str_detect(string_vec, "i think$")
+```
+
+    ## [1] FALSE FALSE FALSE  TRUE
+
+``` r
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+str_detect(string_vec, "[Bb]ush")
+```
+
+    ## [1]  TRUE  TRUE  TRUE FALSE
+
+``` r
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+str_detect(string_vec, "[0-9][a-zA-Z]")
+```
+
+    ## [1]  TRUE  TRUE FALSE  TRUE
+
+``` r
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+str_detect(string_vec, "7.11")
+```
+
+    ## [1]  TRUE  TRUE FALSE  TRUE
+
+``` r
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+str_detect(string_vec, "\\[")
+```
+
+    ## [1]  TRUE FALSE  TRUE  TRUE
+
+## Why factors are weird
+
+``` r
+factor_vec = factor(c("male", "male", "female", "female"))
+as.numeric(factor_vec)
+```
+
+    ## [1] 2 2 1 1
+
+``` r
+factor_vec = fct_relevel(factor_vec, "male")
+as.numeric(factor_vec)
+```
+
+    ## [1] 1 1 2 2
+
+## NSDUH
+
+``` r
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+table_marj = 
+  read_html(nsduh_url) %>% 
   html_table() %>% 
   first() %>% 
-  slice(-1) 
+  slice(-1)
 ```
 
-## Star wars
-
-Get some star wars data …
+Let’s clean this up!
 
 ``` r
-sw_url = "https://www.imdb.com/list/ls070150896/"
-sw_html = 
-  read_html(sw_url)
-sw_titles = 
-  sw_html %>% 
-  html_elements(".lister-item-header a") %>% 
-  html_text()
-sw_revenue = 
-  sw_html %>% 
-  html_elements(".text-small:nth-child(7) span:nth-child(5)") %>% 
-  html_text()
-sw_df = 
-  tibble(
-    title = sw_titles,
-    revenue = sw_revenue
-  )
+marj_df = 
+  table_marj %>% 
+  select(-contains("P Value")) %>% 
+  pivot_longer(
+    -State,
+    names_to = "age_year",
+    values_to = "percent") %>% 
+  separate(age_year, into = c("age", "year"), "\\(") %>% 
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)
+  ) %>% 
+  filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West")))
 ```
 
-## Napoleon dynamite
-
-Dynamite reviews
+Do dataframe stuff
 
 ``` r
-dynamite_url = "https://www.amazon.com/product-reviews/B00005JNBQ/ref=cm_cr_arp_d_viewopt_rvwer?ie=UTF8&reviewerType=avp_only_reviews&sortBy=recent&pageNumber=1"
-dynamite_html = 
-  read_html(dynamite_url)
-dynamite_review_titles = 
-  dynamite_html %>% 
-  html_elements(".a-text-bold span") %>% 
-  html_text()
-dynamite_stars = 
-  dynamite_html %>% 
-  html_elements("#cm_cr-review_list .review-rating") %>% 
-  html_text()
-dynamite_df =
-  tibble(
-    titles = dynamite_review_titles,
-    stars = dynamite_stars
-  )
+marj_df %>% 
+  filter(age == "12-17") %>% 
+  mutate(
+    State = fct_reorder(State, percent)
+  ) %>% 
+  ggplot(aes(x = State, y = percent, color = year)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## Try some APIs
+<img src="Reading_from_web_files/figure-gfm/unnamed-chunk-10-1.png" width="90%" />
 
-Get some data from an API about water.
-
-``` r
-water_df =
-  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.csv") %>% 
-  content()
-```
-
-    ## Rows: 42 Columns: 4
-
-    ## ── Column specification ────────────────────────────────────────────────────────
-    ## Delimiter: ","
-    ## dbl (4): year, new_york_city_population, nyc_consumption_million_gallons_per...
-
-    ## 
-    ## ℹ Use `spec()` to retrieve the full column specification for this data.
-    ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
-
-Let’s see what JSON looks like …
+## Restaurant Inspections
 
 ``` r
-water_df =
-  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% 
-  content("text") %>% 
-  jsonlite::fromJSON() %>% 
-  as_tibble()
+data("rest_inspec")
 ```
 
 ``` r
-GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% 
-  content("text") %>% 
-  jsonlite::fromJSON() %>% 
-  as_tibble()
+rest_inspec %>% 
+  janitor::tabyl(boro, grade) 
 ```
 
-    ## # A tibble: 42 × 4
-    ##    year  new_york_city_population nyc_consumption_millio… per_capita_gallons_pe…
-    ##    <chr> <chr>                    <chr>                   <chr>                 
-    ##  1 1979  7102100                  1512                    213                   
-    ##  2 1980  7071639                  1506                    213                   
-    ##  3 1981  7089241                  1309                    185                   
-    ##  4 1982  7109105                  1382                    194                   
-    ##  5 1983  7181224                  1424                    198                   
-    ##  6 1984  7234514                  1465                    203                   
-    ##  7 1985  7274054                  1326                    182                   
-    ##  8 1986  7319246                  1351                    185                   
-    ##  9 1987  7342476                  1447                    197                   
-    ## 10 1988  7353719                  1484                    202                   
-    ## # … with 32 more rows
-
-BRFSS data via API
+    ##           boro     A     B    C Not Yet Graded   P    Z   NA_
+    ##          BRONX 13688  2801  701            200 163  351 16833
+    ##       BROOKLYN 37449  6651 1684            702 416  977 51930
+    ##      MANHATTAN 61608 10532 2689            765 508 1237 80615
+    ##        Missing     4     0    0              0   0    0    13
+    ##         QUEENS 35952  6492 1593            604 331  913 45816
+    ##  STATEN ISLAND  5215   933  207             85  47  149  6730
 
 ``` r
-brfss_df = 
-  GET("https://chronicdata.cdc.gov/resource/acme-vg9e.csv",
-      query = list("$limit" = 5000)) %>% 
-  content()
+rest_inspec = 
+  rest_inspec %>% 
+  filter(
+    str_detect(grade, "[ABC]"),
+    !(boro == "Missing")
+  ) %>% 
+  mutate(boro = str_to_title(boro))
 ```
-
-    ## Rows: 5000 Columns: 23
-
-    ## ── Column specification ────────────────────────────────────────────────────────
-    ## Delimiter: ","
-    ## chr (16): locationabbr, locationdesc, class, topic, question, response, data...
-    ## dbl  (6): year, sample_size, data_value, confidence_limit_low, confidence_li...
-    ## lgl  (1): locationid
-
-    ## 
-    ## ℹ Use `spec()` to retrieve the full column specification for this data.
-    ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
-
-What about pokemon …
 
 ``` r
-poke_data = 
-  GET("https://pokeapi.co/api/v2/pokemon/1") %>% 
-  content()
-poke_data[["name"]]
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  janitor::tabyl(boro, grade) 
 ```
 
-    ## [1] "bulbasaur"
+    ##           boro    A   B  C
+    ##          Bronx 1170 305 56
+    ##       Brooklyn 1948 296 61
+    ##      Manhattan 1983 420 76
+    ##         Queens 1647 259 48
+    ##  Staten Island  323 127 21
 
 ``` r
-poke_data[["height"]]
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  mutate(
+    boro = fct_infreq(boro)
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar()
 ```
 
-    ## [1] 7
+<img src="Reading_from_web_files/figure-gfm/unnamed-chunk-15-1.png" width="90%" />
+
+What about changing a label …
 
 ``` r
-poke_data[["abilities"]]
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  mutate(
+    boro = fct_infreq(boro),
+    boro = fct_recode(boro, "The City" = "Manhattan")
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar()
 ```
 
-    ## [[1]]
-    ## [[1]]$ability
-    ## [[1]]$ability$name
-    ## [1] "overgrow"
-    ## 
-    ## [[1]]$ability$url
-    ## [1] "https://pokeapi.co/api/v2/ability/65/"
-    ## 
-    ## 
-    ## [[1]]$is_hidden
-    ## [1] FALSE
-    ## 
-    ## [[1]]$slot
-    ## [1] 1
-    ## 
-    ## 
-    ## [[2]]
-    ## [[2]]$ability
-    ## [[2]]$ability$name
-    ## [1] "chlorophyll"
-    ## 
-    ## [[2]]$ability$url
-    ## [1] "https://pokeapi.co/api/v2/ability/34/"
-    ## 
-    ## 
-    ## [[2]]$is_hidden
-    ## [1] TRUE
-    ## 
-    ## [[2]]$slot
-    ## [1] 3
+<img src="Reading_from_web_files/figure-gfm/unnamed-chunk-16-1.png" width="90%" />

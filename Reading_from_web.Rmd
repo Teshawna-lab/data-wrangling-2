@@ -1,5 +1,5 @@
 ---
-title: "Reading Data From the Web"
+title: "Strings and Factors"
 author: "Teshawna Badu"
 output: github_document
 ---
@@ -7,7 +7,7 @@ output: github_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(rvest)
-library(httr)
+library(p8105.datasets)
 knitr::opts_chunk$set(
   fig.width = 6,
   fig.asp = .6,
@@ -23,114 +23,174 @@ scale_fill_discrete = scale_fill_viridis_d
 ```
 
 
-## NSDUH data
+## String vectors
+
 
 ```{r}
-url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
-drug_use_html = 
-  read_html(url)
-drug_use_df = 
-  drug_use_html %>% 
+string_vec = c("my", "name", "is", "jeff")
+str_detect(string_vec, "Jeff")
+str_replace(string_vec, "jeff", "")
+```
+
+```{r}
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+str_detect(string_vec, "^i think")
+str_detect(string_vec, "i think$")
+```
+
+
+```{r}
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+str_detect(string_vec, "[Bb]ush")
+```
+
+
+```{r}
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+str_detect(string_vec, "[0-9][a-zA-Z]")
+```
+
+
+```{r}
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+str_detect(string_vec, "7.11")
+```
+
+
+```{r}
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+str_detect(string_vec, "\\[")
+```
+
+
+## Why factors are weird
+
+```{r}
+factor_vec = factor(c("male", "male", "female", "female"))
+as.numeric(factor_vec)
+factor_vec = fct_relevel(factor_vec, "male")
+as.numeric(factor_vec)
+```
+
+
+## NSDUH
+
+```{r}
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+table_marj = 
+  read_html(nsduh_url) %>% 
   html_table() %>% 
   first() %>% 
-  slice(-1) 
+  slice(-1)
+```
+
+Let's clean this up!
+
+```{r}
+marj_df = 
+  table_marj %>% 
+  select(-contains("P Value")) %>% 
+  pivot_longer(
+    -State,
+    names_to = "age_year",
+    values_to = "percent") %>% 
+  separate(age_year, into = c("age", "year"), "\\(") %>% 
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)
+  ) %>% 
+  filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West")))
+```
+
+Do dataframe stuff
+
+```{r}
+marj_df %>% 
+  filter(age == "12-17") %>% 
+  mutate(
+    State = fct_reorder(State, percent)
+  ) %>% 
+  ggplot(aes(x = State, y = percent, color = year)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 
-## Star wars
-
-Get some star wars data ...
+## Restaurant Inspections
 
 ```{r}
-sw_url = "https://www.imdb.com/list/ls070150896/"
-sw_html = 
-  read_html(sw_url)
-sw_titles = 
-  sw_html %>% 
-  html_elements(".lister-item-header a") %>% 
-  html_text()
-sw_revenue = 
-  sw_html %>% 
-  html_elements(".text-small:nth-child(7) span:nth-child(5)") %>% 
-  html_text()
-sw_df = 
-  tibble(
-    title = sw_titles,
-    revenue = sw_revenue
-  )
+data("rest_inspec")
 ```
 
-
-## Napoleon dynamite
-
-Dynamite reviews
-
 ```{r}
-dynamite_url = "https://www.amazon.com/product-reviews/B00005JNBQ/ref=cm_cr_arp_d_viewopt_rvwer?ie=UTF8&reviewerType=avp_only_reviews&sortBy=recent&pageNumber=1"
-dynamite_html = 
-  read_html(dynamite_url)
-dynamite_review_titles = 
-  dynamite_html %>% 
-  html_elements(".a-text-bold span") %>% 
-  html_text()
-dynamite_stars = 
-  dynamite_html %>% 
-  html_elements("#cm_cr-review_list .review-rating") %>% 
-  html_text()
-dynamite_df =
-  tibble(
-    titles = dynamite_review_titles,
-    stars = dynamite_stars
-  )
-```
-
-
-## Try some APIs
-
-Get some data from an API about water.
-
-```{r}
-water_df =
-  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.csv") %>% 
-  content()
-```
-
-Let's see what JSON looks like ...
-
-```{r}
-water_df =
-  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% 
-  content("text") %>% 
-  jsonlite::fromJSON() %>% 
-  as_tibble()
+rest_inspec %>% 
+  janitor::tabyl(boro, grade) 
 ```
 
 
 ```{r}
-GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% 
-  content("text") %>% 
-  jsonlite::fromJSON() %>% 
-  as_tibble()
+rest_inspec = 
+  rest_inspec %>% 
+  filter(
+    str_detect(grade, "[ABC]"),
+    !(boro == "Missing")
+  ) %>% 
+  mutate(boro = str_to_title(boro))
 ```
 
-BRFSS data via API
 
 ```{r}
-brfss_df = 
-  GET("https://chronicdata.cdc.gov/resource/acme-vg9e.csv",
-      query = list("$limit" = 5000)) %>% 
-  content()
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  janitor::tabyl(boro, grade) 
 ```
 
-
-What about pokemon ...
 
 ```{r}
-poke_data = 
-  GET("https://pokeapi.co/api/v2/pokemon/1") %>% 
-  content()
-poke_data[["name"]]
-poke_data[["height"]]
-poke_data[["abilities"]]
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  mutate(
+    boro = fct_infreq(boro)
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar()
 ```
 
+What about changing a label ...
+
+```{r}
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  mutate(
+    boro = fct_infreq(boro),
+    boro = fct_recode(boro, "The City" = "Manhattan")
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar()
+```
